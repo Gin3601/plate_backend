@@ -1,0 +1,103 @@
+
+# AI 电商图片生成 API 服务 (AI E-Commerce Image Generation API)
+
+这是一个基于 **FastAPI** 构建的后端服务，旨在利用多模态大模型（如 Qwen-VL, Gemini）和 LangChain，自动将简单的商品原图转换为专业的电商营销图片。系统支持生成主图、尺寸图、卖点展示图和场景图等多种类型。
+
+## ✨ 主要功能
+
+*   **双模式生成**：
+    *   **高质量模式 (Quality Mode)**：基于“少样本学习 (Few-Shot)”原理。通过分析参考图片（输入/输出对）的编辑逻辑，将其迁移到用户上传的图片上。
+    *   **快速模式 (Fast Mode)**：基于预设的专业提示词模板，无需参考图即可快速生成。
+*   **并行处理能力**：支持单次请求通过线程池并行生成全套 6 种类型的电商图片。
+*   **智能提示词工程**：
+    *   自动分析参考图之间的视觉转换逻辑。
+    *   支持用户输入自定义描述（`user_description`）来微调生成结果。
+    *   内置提示词润色功能，将简短指令转化为高质量的图像生成 Prompt。
+*   **支持的图片类型**：
+    1.  **商品图**：符合电商规范的高级白底/渐变底主图。
+    2.  **尺寸图**：带有尺寸标注和装饰边框的规格图。
+    3.  **商品展示图1**：强调材质、安全等基础卖点（如 Food Grade）。
+    4.  **商品展示图2**：强调耐用性、承重等功能卖点（如 Heavy Duty）。
+    5.  **场景图1**：无人物的氛围场景（如节日餐桌）。
+    6.  **场景图2**：带有人物的交互场景（如聚会）。
+
+## 📂 项目目录结构
+
+为了确保代码正常运行，请遵循以下目录结构放置文件，特别是 `template_images` 文件夹下的默认参考图：
+
+```text
+.
+├── main.py                 # 主程序入口
+├── src/
+│   ├── __init__.py
+│   ├── model_api.py        # 模型定义 (Qwen, Gemini 等)
+│   └── util.py             # 工具函数 (图片编码, URL提取等)
+└── template_images/        # 默认参考图片库 (必须存在)
+    ├── source/             # 参考输入原图 (1.jpg, 2.jpg, 3.jpg)
+    ├── good_img/           # 参考输出：商品图
+    ├── size_img/           # 参考输出：尺寸图
+    ├── four_img/           # 参考输出：展示图1
+    ├── intro_img/          # 参考输出：展示图2
+    ├── no_people_img/      # 参考输出：场景图1
+    └── people_img/         # 参考输出：场景图2
+🛠️ 环境依赖
+需要 Python 3.8+ 环境。
+安装依赖库：
+code
+Bash
+pip install fastapi uvicorn python-multipart langchain-core requests
+配置 API Key：
+请确保在 src.model_api 中正确配置了 Qwen (通义千问) 和 Gemini 模型的 API Key。
+🚀 API 接口说明
+服务默认运行在 8700 端口。
+1. 单张高质量图片生成 (带参考图分析)
+接口地址: POST /process_images_quality_one/
+通过分析参考图的变换逻辑来处理用户图片。如果不上传参考图，系统将加载默认模板。
+参数 (Form-Data):
+user_image: (必填) 待处理的用户商品原图文件。
+image_type: (必填) 图片类型，可选值：商品图, 尺寸图, 商品展示图1, 商品展示图2, 场景图1, 场景图2。
+user_description: (可选) 额外的文本描述，用于修改细节（例如："背景换成圣诞节"）。
+input_ref_image1/2/3: (可选) 自定义参考输入图。
+output_ref_image1/2/3: (可选) 自定义参考输出图。
+返回: JSON 格式，包含生成的图片 URL。
+2. 全套高质量图片并行生成
+接口地址: POST /process_images_quality_parallel/
+并行调用，一次性为同一张商品图生成所有 6 种类型的图片（使用默认参考图）。
+参数 (Form-Data):
+user_image: (必填) 待处理的用户商品原图。
+返回: JSON 列表，包含 6 张图片的生成结果。
+3. 单张快速图片生成 (模板模式)
+接口地址: POST /process_images_fast_one/
+直接使用内置的高质量文本 Prompt 模板进行生成，速度更快，无需分析参考图。
+参数 (Form-Data):
+user_image: (必填) 待处理的用户商品原图。
+image_type: (必填) 图片类型。
+user_description: (可选) 额外的文本描述。
+返回: JSON 格式，包含生成的图片 URL。
+4. 全套快速图片并行生成
+接口地址: POST /process_images_fast_parallel/
+使用模板模式并行生成 6 种类型的图片。
+参数 (Form-Data):
+user_image: (必填) 待处理的用户商品原图。
+返回: JSON 列表，包含 6 张图片的生成结果。
+🏃‍♂️ 启动服务
+在项目根目录下运行以下命令：
+code
+Bash
+python main.py
+或者直接使用 uvicorn 命令（开发模式）：
+code
+Bash
+uvicorn main:app --host 0.0.0.0 --port 8700 --reload
+🧠 核心逻辑流程
+加载图片：接收用户上传的图片，根据模式决定是否加载 template_images 中的参考图。
+提示词生成 (Prompt Generation)：
+高质量模式：调用 qwen_vl_max_model 分析参考图对（Input -> Output），提取抽象的编辑指令。
+快速模式：直接调用内置的 info_template 函数获取专业提示词。
+用户描述注入：如果用户提供了 user_description，调用 qwen_max 将其无缝融合到原始提示词中，并确保不破坏原有逻辑。
+提示词润色：调用 qwen_vl_max_model 对最终 Prompt 进行扩写和优化，增加细节描述和艺术风格。
+图像生成：将构建好的 Prompt 和用户原图发送给 gemini_flash_image_model_3 进行最终图像生成。
+⚠️ 注意事项
+CORS 设置：代码中配置了允许跨域的源（如 localhost:3000），如果前端地址不同，请在 origins 列表中添加。
+临时文件：系统使用 tempfile 处理上传的图片，请求结束后会自动清理，不会占用服务器磁盘空间。
+并发限制：并行接口使用了 max_workers=6 的线程池，请根据服务器性能和 API 速率限制（Rate Limit）适当调整。
