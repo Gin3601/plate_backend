@@ -270,8 +270,6 @@ def info_template(image_type: str):
     else:
         return ""
 
-
-
 @router.post("/process_images_quality_one/",summary="单张高质量图片套图")
 async def process_images_quality_one_endpoint(
     input_ref_image1: UploadFile = File(None),
