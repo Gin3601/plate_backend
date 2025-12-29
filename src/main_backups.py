@@ -9,7 +9,6 @@ import tempfile
 import os
 import shutil
 import uuid
-from fastapi.responses import JSONResponse
 from concurrent.futures import ThreadPoolExecutor
 from fastapi.middleware.cors import CORSMiddleware
 router = APIRouter()
@@ -134,10 +133,11 @@ def generate_prompt(image_paths, prompt):
     response = qwen_vl_max_model.invoke(messages)
     return response.content
 
+
 def add_user_description(prompt: str) -> str:
     """添加用户描述到提示词"""
     messages = create_message_with_images(prompt=prompt,system_prompt="""
-    你是一个图像生成提示词修改助手，你的任务是根据用户输入的描述，对原始的图像生成提示词进行【必要且最小化】的增加或修改。
+     你是一个图像生成提示词修改助手，你的任务是根据用户输入的描述，对原始的图像生成提示词进行【必要且最小化】的增加或修改。
 
     【最高优先级规则（必须严格遵守）】
     - 你只能使用【原始提示词中已有的信息】和【用户描述中明确提到的信息】。
@@ -243,10 +243,6 @@ def info_template(image_type: str):
         底部补充说明文字：“ High Quality Paper : 50 Pcs”，字体清晰，与标题颜色协调。
         要求：整体看起来像亚马逊/Temu/速卖通的专业产品尺寸展示图；主体图案颜色不偏色、不变形；画面清晰、无水印、无乱码、无多余logo；排版留白舒适，信息居中对齐。
         """    
-    # elif image_type == "尺寸图":
-    #     return """
-    #     生成一张商品尺寸图，富有装饰性的现代商品规格图，顶部设置醒目标题栏，以加粗现代字体清晰呈现“PRODUCT SIZE”，字体颜色为深灰或黑色，确保信息一目了然。画面整体采用图案丰富、层次饱满的设计语言，背景融合浅色系商品图案与细腻的重复纹样——如几何线条、抽象纹理或轻柔的水彩晕染效果——营造出清新而富有视觉趣味的氛围，同时保持背景不喧宾夺主。商品主体居中展示，周围环绕适度的装饰元素，例如柔和弧线、点状阵列或低透明度的图标点缀，增强画面节奏感与设计感。尺寸信息“12 INCH × 10 INCH”明确标注于图片右下角，采用与主标题风格一致但略小的字体，确保可读性与整体协调性。底部居中位置以优雅字体注明产品信息：“High Quality Paper : 50 Pcs”，文字区域可置于一条浅色横幅或微妙衬底之上，以强化信息层级。整体布局平衡有序，色彩搭配柔和舒适，以米白、浅灰、淡蓝或柔粉等低饱和色调为主，结合精致细节，既体现专业可靠的产品说明属性，又通过丰富的图案语言传递出高级且富有美感的视觉体验。
-    #     """
     elif image_type == "商品展示图1":
         return """
         生成一张商品的展示图，底部增加功能标识横幅，包含“Food Grade”、“Easy to Clean”、“Safe&Non-toxic”、“Disposable”、“Party Supplies”五项，每项配对应图标，图标与文字颜色需与主图主题色协调。整体风格简洁专业，突出产品卖点。
@@ -407,12 +403,10 @@ async def process_images_quality_one_endpoint(
             return {
                 "code": 200,
                 "message": "图片生成成功",
-                "data":[
-                    {
-                        "image_url": image_url,
-                        "image_type": image_type
-                    }
-                ]
+                "data":{
+                    "image_url": image_url,
+                    "image_type": image_type
+                }
             }
 
     except HTTPException:
@@ -485,12 +479,10 @@ async def process_images_quality_parallel_endpoint(
                 return {
                     "code": 200,
                     "message": "图片生成成功",
-                    "data": [
-                        {
-                            "image_url": image_url,
-                            "image_type": image_type
-                        }
-                    ]
+                    "data": {
+                        "image_url": image_url,
+                        "image_type": image_type
+                    }
                 }
 
         except Exception as e:
@@ -581,7 +573,7 @@ async def process_images_quality_parallel_endpoint(
         }
 
 
-@router.post("/process_images_fast_one/", summary="单张快速图片套图")
+@router.post("/process_images_fast_one/",summary="单张快速图片套图")
 async def process_images_fast_one_endpoint(
         user_image: UploadFile = File(...),
         user_description: str = Form(""),
@@ -594,10 +586,7 @@ async def process_images_fast_one_endpoint(
             user_image_path = os.path.join(temp_dir, "user_image.jpg")
             with open(user_image_path, "wb") as buffer:
                 shutil.copyfileobj(user_image.file, buffer)
-
-            # 获取默认的提示词模板
             generated_prompt = info_template(image_type)
-
             if user_description:
                 print("根据用户输入修改提示词")
                 add_user_description_prompt = f"""
@@ -607,48 +596,34 @@ async def process_images_fast_one_endpoint(
                 print(f"add_user_description_prompt:\n {add_user_description_prompt}")
                 generated_prompt = add_user_description(prompt=add_user_description_prompt)
                 print(f"add_user_generated_prompt:\n {generated_prompt}")
-
-            final_prompt = generated_prompt + "\n注意，不要改变商品本身的图案,最终图片的尺寸为1600*1600px,请确保生成完整的图像，而不仅仅是文字描述。"
-            
-            # 处理图像并返回 URL
+            final_prompt=generated_prompt+"\n注意，不要改变商品本身的图案,最终图片的尺寸为1600*1600px,请确保生成完整的图像，而不仅仅是文字描述。"
+            # 图片url
             image_url = process_images([user_image_path], final_prompt)
-            
             if not image_url:
-                return JSONResponse(
-                    status_code=500,
-                    content={
-                        "code": 500,
-                        "message": "图片生成失败，找不到url",
-                        "data": []
-                    }
-                )
-            print(f"image_url: {image_url}, image_type: {image_type}")
-            # 返回数据：将字典放入列表中
-            return JSONResponse(
-                status_code=200,
-                content={
-                    "code": 200,
-                    "message": "图片生成成功",
-                    "data": [
-                        {
-                            "image_url": image_url,
-                            "image_type": image_type
-                        }
-                    ]
+                return {
+                    "code": 500,
+                    "message": "图片生成失败，找不到url",
+                    "data": []
                 }
-            )
+                # 返回图片URL列表
+            return {
+                "code": 200,
+                "message": "图片生成成功",
+                "data": {
+                    "image_url": image_url,
+                    "image_type": image_type
+                }
+            }
 
     except HTTPException:
         raise
     except Exception as e:
-        return JSONResponse(
-            status_code=500,
-            content={
-                "code": 500,
-                "message": f"处理失败: {str(e)}",
-                "data": []
-            }
-        )
+        return {
+            "code": 500,
+            "message": f"处理失败: {str(e)}",
+            "data": []
+        }
+
 
 @router.post("/process_images_fast_parallel/",summary="多张快速图片套图")
 async def process_images_fast_parallel_endpoint(
